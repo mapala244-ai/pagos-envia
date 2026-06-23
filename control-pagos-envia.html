@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Pagos ENVIA — Tiendas Barón</title>
+<style>
+  :root{
+    --bg:#f7f6f3;
+    --panel:#ffffff;
+    --ink:#1f2430;
+    --muted:#6b7280;
+    --line:#e6e3dc;
+    --gold:#9a7b2f;
+    --gold-dk:#7a611f;
+    --green:#1f7a4d;
+    --green-bg:#e6f4ec;
+    --amber:#9a6b00;
+    --amber-bg:#fdf2da;
+    --gray-bg:#eceae5;
+    --red:#a33;
+    --red-bg:#fbe9e7;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);}
+  header{
+    background:var(--ink);color:#fff;padding:20px 28px;
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  }
+  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px;}
+  header h1 span{color:#d8b85a;}
+  header .sub{font-size:12px;color:#b9bcc4;margin-top:2px;}
+  main{max-width:1280px;margin:0 auto;padding:24px 20px 60px;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .card .lbl{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+  .card .val{font-size:21px;font-weight:700;}
+  .card.green .val{color:var(--green);}
+  .card.amber .val{color:var(--amber);}
+  .card.gold .val{color:var(--gold-dk);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:20px;}
+  .panel h2{font-size:14px;margin:0 0 12px;color:var(--ink);text-transform:uppercase;letter-spacing:.4px;}
+
+  .upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:720px){.upload-grid{grid-template-columns:1fr;}}
+  .upload-box{border:1.5px dashed var(--line);border-radius:8px;padding:16px;text-align:center;}
+  .upload-box p{margin:0 0 10px;font-size:13px;color:var(--muted);}
+  .upload-box label{
+    display:inline-block;background:var(--ink);color:#fff;padding:9px 16px;border-radius:6px;
+    font-size:13px;cursor:pointer;font-weight:500;
+  }
+  .upload-box label:hover{background:#333;}
+  .upload-box input[type=file]{display:none;}
+  .status-msg{margin-top:10px;font-size:12.5px;min-height:16px;}
+  .status-msg.ok{color:var(--green);}
+  .status-msg.err{color:var(--red);}
+  .status-msg.busy{color:var(--amber);}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .filters select, .filters input{
+    padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;
+  }
+  .filters input[type=text]{flex:1;min-width:160px;}
+  .btn-refresh{
+    background:var(--gold);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;
+  }
+  .btn-refresh:hover{background:var(--gold-dk);}
+
+  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  thead th{
+    text-align:left;padding:9px 10px;background:#fafaf8;border-bottom:2px solid var(--line);
+    color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.3px;white-space:nowrap;
+  }
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  tbody tr:hover{background:#fbfaf7;}
+  .badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block;}
+  .badge.pagada{background:var(--green-bg);color:var(--green);}
+  .badge.pendiente{background:var(--amber-bg);color:var(--amber);}
+  .badge.devuelta{background:var(--gray-bg);color:var(--muted);}
+  .badge.otro{background:var(--red-bg);color:var(--red);}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+  .table-scroll{max-height:560px;overflow-y:auto;}
+  .empty{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
+  .num{text-align:right;}
+  footer{text-align:center;color:var(--muted);font-size:11.5px;padding:20px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Control de Pagos <span>ENVIA</span></h1>
+    <div class="sub">Tiendas Barón — cruce de guías despachadas vs. consignaciones</div>
+  </div>
+  <div class="sub" id="lastSync">—</div>
+</header>
+
+<main>
+
+  <div class="cards" id="cards">
+    <div class="card"><div class="lbl">Guías totales</div><div class="val" id="cTotal">0</div></div>
+    <div class="card green"><div class="lbl">Pagadas</div><div class="val" id="cPagadas">0</div></div>
+    <div class="card amber"><div class="lbl">Pendientes de pago</div><div class="val" id="cPendientes">0</div></div>
+    <div class="card"><div class="lbl">Valor producto (bruto)</div><div class="val" id="cValorProducto">$0</div></div>
+    <div class="card"><div class="lbl">Pagado por ENVIA</div><div class="val" id="cPagado">$0</div></div>
+    <div class="card gold"><div class="lbl">Flete acumulado (sin facturar)</div><div class="val" id="cFlete">$0</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Cargar archivos</h2>
+    <div class="upload-grid">
+      <div class="upload-box">
+        <p><strong>Enviados (mensual)</strong><br>El archivo .xls que descargas de ENVIA con todo lo despachado del mes.</p>
+        <label for="fileEnviados">Elegir archivo</label>
+        <input type="file" id="fileEnviados" accept=".xls,.html,.htm">
+        <div class="status-msg" id="statusEnviados"></div>
+      </div>
+      <div class="upload-box">
+        <p><strong>Pagos (lunes / miércoles / viernes)</strong><br>El archivo .xls de traslados/consignaciones de ENVIA.</p>
+        <label for="filePagos">Elegir archivo</label>
+        <input type="file" id="filePagos" accept=".xls,.html,.htm">
+        <div class="status-msg" id="statusPagos"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Guías</h2>
+    <div class="filters">
+      <select id="fEstado">
+        <option value="">Todos los estados de pago</option>
+        <option value="PAGADA">Pagada</option>
+        <option value="PENDIENTE">Pendiente de pago</option>
+        <option value="DEVUELTA">Devuelta</option>
+        <option value="OTRO">Otro / novedad</option>
+      </select>
+      <input type="text" id="fBusqueda" placeholder="Buscar por guía, destinatario o ciudad...">
+      <button class="btn-refresh" id="btnRefresh">Actualizar tablero</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Guía</th>
+              <th>Estado pago</th>
+              <th>Estado ENVIA</th>
+              <th>Destinatario</th>
+              <th>Ciudad</th>
+              <th>Fec. despacho</th>
+              <th>Fec. entrega</th>
+              <th class="num">Valor producto</th>
+              <th class="num">Flete+costos</th>
+              <th>Factura</th>
+              <th>Num. traslado</th>
+              <th>Fec. pago</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="12" class="empty">Cargando datos del tablero...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Control de Pagos ENVIA · Tiendas Barón</footer>
+
+<script>
+// ====== CONFIGURACIÓN SUPABASE ======
+const SUPABASE_URL = "https://idxinayojtbxjovvliwh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_z0QIufdHXkSfgBi_vi-Ehg_Nvmn4cRY";
+// =====================================
+
+const headersSb = {
+  "apikey": SUPABASE_ANON_KEY,
+  "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+  "Content-Type": "application/json"
+};
+
+let guiasData = [];
+let pagosData = [];
+
+// ---------- Utilidades de parseo ----------
+
+function parseXlsHtml(text) {
+  const trMatches = text.match(/<tr>([\s\S]*?)<\/tr>/g) || [];
+  return trMatches.map(tr => {
+    const tdMatches = tr.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+    return tdMatches.map(td => {
+      let inner = td.replace(/^<td[^>]*>/, "").replace(/<\/td>$/, "");
+      inner = inner.replace(/<!--[\s\S]*?-->/g, "");
+      inner = inner.replace(/&nbsp;/g, " ");
+      inner = inner.trim();
+      if (inner.startsWith("'")) inner = inner.slice(1);
+      return inner.trim();
+    });
+  });
+}
+
+function rowsToObjects(rows) {
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (r[i] !== undefined ? r[i] : ""));
+    return obj;
+  });
+}
+
+function normGuia(s) {
+  return (s || "").replace(/\D/g, "");
+}
+
+function parseNum(s) {
+  if (!s) return 0;
+  const clean = String(s).replace(/\./g, "").replace(/,/g, ".").replace(/[^\d.-]/g, "");
+  const n = parseFloat(clean);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseFechaCO(s) {
+  if (!s || !s.trim()) return null;
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+}
+
+function cleanEstado(s) {
+  return (s || "").replace(/<!--[\s\S]*?-->/g, "").trim();
+}
+
+function mesMasComun(fechas) {
+  const counts = {};
+  fechas.forEach(f => {
+    if (!f) return;
+    const m = f.match(/^\d{4}-(\d{2})/);
+    if (m) counts[m[1]] = (counts[m[1]] || 0) + 1;
+  });
+  let best = null, bestCount = 0;
+  for (const k in counts) { if (counts[k] > bestCount) { best = k; bestCount = counts[k]; } }
+  const meses = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  return best ? meses[parseInt(best,10)] : "Sin fecha";
+}
+
+// ---------- Carga: Enviados ----------
+
+document.getElementById("fileEnviados").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("statusEnviados");
+  statusEl.className = "status-msg busy";
+  statusEl.textContent = "Leyendo archivo...";
+  try {
+    const text = await file.text();
+    const rows = parseXlsHtml(text);
+    const objs = rowsToObjects(rows);
+    if (!objs.length) throw new Error("No se encontraron filas en el archivo.");
+
+    const payload = objs.map(o => ({
+      guia: normGuia(o["Guia"]),
+      estado: cleanEstado(o["Estado"]),
+      fec_captura: parseFechaCO(o["Fec_Captura"]),
+      fec_entrega: parseFechaCO(o["Fec_Entrega"]),
+      nombre_destinatario: o["Nombre_Destinatario"] || "",
+      ciudad_destino: o["Ciudad_Destino"] || "",
+      tel_destinatario: o["Tel_Destinatario"] || "",
+      ced_destinatario: o["Ced_Destinatario"] || "",
+      valor_declarado: parseNum(o["Valor_Declarado"]),
+      valor_flete: parseNum(o["Valor_Flete"]),
+      valor_costom: parseNum(o["Valor_CostoM"]),
+      valor_otros: parseNum(o["Valor_Otros"]),
+      total_flete: parseNum(o["Total"]),
+      valor_producto: parseNum(o["Valor_Producto"]),
+      factura: o["Factura"] || "",
+      updated_at: new Date().toISOString()
+    })).filter(r => r.guia);
+
+    const mes = mesMasComun(payload.map(r => r.fec_captura));
+    payload.forEach(r => r.mes_archivo = mes);
+
+    await supabaseUpsert("envia_guias", payload, "guia");
+
+    statusEl.className = "status-msg ok";
+    statusEl.textContent = `✓ ${payload.length} guías cargadas (${mes}).`;
+    e.target.value = "";
+    await cargarTablero();
+  } catch (err) {
+    statusEl.className = "status-msg err";
+    statusEl.textContent = "Error: " + err.message;
+  }
+});
+
+// ---------- Carga: Pagos ----------
+
+document.getElementById("filePagos").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("statusPagos");
+  statusEl.className = "status-msg busy";
+  statusEl.textContent = "Leyendo archivo...";
+  try {
+    const text = await file.text();
+    const rows = parseXlsHtml(text);
+    const objs = rowsToObjects(rows);
+    if (!objs.length) throw new Error("No se encontraron filas en el archivo.");
+
+    const payload = objs.map(o => ({
+      guia: normGuia(o["Guia"]),
+      num_traslado: o["Num_Traslado"] || "",
+      fec_traslado: parseFechaCO(o["Fec_Traslado"]),
+      valor_producto: parseNum(o["Valor_Producto"]),
+      nombre_destinatario: o["Nom_Destinatario"] || "",
+      ciudad_destino: o["CiudadDestino"] || "",
+      tel_destinatario: o["Tel_Destinatario"] || "",
+      archivo_origen: file.name,
+      updated_at: new Date().toISOString()
+    })).filter(r => r.guia);
+
+    await supabaseUpsert("envia_pagos", payload, "guia");
+
+    statusEl.className = "status-msg ok";
+    statusEl.textContent = `✓ ${payload.length} pagos cargados.`;
+    e.target.value = "";
+    await cargarTablero();
+  } catch (err) {
+    statusEl.className = "status-msg err";
+    statusEl.textContent = "Error: " + err.message;
+  }
+});
+
+// ---------- Supabase ----------
+
+async function supabaseUpsert(table, rows, conflictCol) {
+  if (!rows.length) return;
+  const chunkSize = 500;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflictCol}`, {
+      method: "POST",
+      headers: { ...headersSb, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(chunk)
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Supabase (${table}): ${resp.status} ${errText}`);
+    }
+  }
+}
+
+async function supabaseSelectAll(table) {
+  let all = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*&order=guia`, {
+      headers: { ...headersSb, "Range-Unit": "items", "Range": `${from}-${from + pageSize - 1}` }
+    });
+    if (!resp.ok) throw new Error(`Error leyendo ${table}: ${resp.status}`);
+    const data = await resp.json();
+    all = all.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+// ---------- Tablero ----------
+
+function formatMoney(n) {
+  return "$" + Math.round(n).toLocaleString("es-CO");
+}
+
+function estadoPagoDe(guiaRow, pagoRow) {
+  if (pagoRow) return "PAGADA";
+  if (guiaRow.estado === "DEVUELTA") return "DEVUELTA";
+  if (guiaRow.estado === "ENTREGADA DIGITALIZADA") return "PENDIENTE";
+  return "OTRO";
+}
+
+async function cargarTablero() {
+  document.getElementById("tbody").innerHTML = '<tr><td colspan="12" class="empty">Cargando datos del tablero...</td></tr>';
+  try {
+    [guiasData, pagosData] = await Promise.all([
+      supabaseSelectAll("envia_guias"),
+      supabaseSelectAll("envia_pagos")
+    ]);
+    document.getElementById("lastSync").textContent = "Actualizado: " + new Date().toLocaleString("es-CO");
+    renderTablero();
+  } catch (err) {
+    document.getElementById("tbody").innerHTML = `<tr><td colspan="12" class="empty">Error cargando datos: ${err.message}</td></tr>`;
+  }
+}
+
+function renderTablero() {
+  const pagosByGuia = {};
+  pagosData.forEach(p => pagosByGuia[p.guia] = p);
+
+  const filtroEstado = document.getElementById("fEstado").value;
+  const filtroTexto = document.getElementById("fBusqueda").value.trim().toLowerCase();
+
+  let totalProducto = 0, totalPagado = 0, totalFlete = 0, pagadas = 0, pendientes = 0;
+
+  const filas = guiasData.map(g => {
+    const pago = pagosByGuia[g.guia];
+    const estadoPago = estadoPagoDe(g, pago);
+    return { g, pago, estadoPago };
+  }).filter(({ g, estadoPago }) => {
+    if (filtroEstado && estadoPago !== filtroEstado) return false;
+    if (filtroTexto) {
+      const haystack = `${g.guia} ${g.nombre_destinatario} ${g.ciudad_destino}`.toLowerCase();
+      if (!haystack.includes(filtroTexto)) return false;
+    }
+    return true;
+  }).sort((a, b) => (b.g.fec_captura || "").localeCompare(a.g.fec_captura || ""));
+
+  guiasData.forEach(g => {
+    const pago = pagosByGuia[g.guia];
+    const estadoPago = estadoPagoDe(g, pago);
+    totalProducto += g.valor_producto || 0;
+    totalFlete += g.total_flete || 0;
+    if (estadoPago === "PAGADA") { pagadas++; totalPagado += pago.valor_producto || 0; }
+    if (estadoPago === "PENDIENTE") pendientes++;
+  });
+
+  document.getElementById("cTotal").textContent = guiasData.length;
+  document.getElementById("cPagadas").textContent = pagadas;
+  document.getElementById("cPendientes").textContent = pendientes;
+  document.getElementById("cValorProducto").textContent = formatMoney(totalProducto);
+  document.getElementById("cPagado").textContent = formatMoney(totalPagado);
+  document.getElementById("cFlete").textContent = formatMoney(totalFlete);
+
+  const tbody = document.getElementById("tbody");
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">No hay guías para mostrar con estos filtros.</td></tr>';
+    return;
+  }
+
+  const badgeClass = { PAGADA: "pagada", PENDIENTE: "pendiente", DEVUELTA: "devuelta", OTRO: "otro" };
+  const badgeLabel = { PAGADA: "Pagada", PENDIENTE: "Pendiente", DEVUELTA: "Devuelta", OTRO: "Novedad" };
+
+  tbody.innerHTML = filas.map(({ g, pago, estadoPago }) => `
+    <tr>
+      <td>${g.guia}</td>
+      <td><span class="badge ${badgeClass[estadoPago]}">${badgeLabel[estadoPago]}</span></td>
+      <td>${g.estado || ""}</td>
+      <td>${g.nombre_destinatario || ""}</td>
+      <td>${g.ciudad_destino || ""}</td>
+      <td>${g.fec_captura || ""}</td>
+      <td>${g.fec_entrega || ""}</td>
+      <td class="num">${formatMoney(g.valor_producto || 0)}</td>
+      <td class="num">${formatMoney(g.total_flete || 0)}</td>
+      <td>${g.factura || ""}</td>
+      <td>${pago ? pago.num_traslado : ""}</td>
+      <td>${pago ? pago.fec_traslado : ""}</td>
+    </tr>
+  `).join("");
+}
+
+document.getElementById("btnRefresh").addEventListener("click", cargarTablero);
+document.getElementById("fEstado").addEventListener("change", renderTablero);
+document.getElementById("fBusqueda").addEventListener("input", renderTablero);
+
+cargarTablero();
+</script>
+</body>
+</html>
